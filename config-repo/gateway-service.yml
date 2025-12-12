@@ -1,0 +1,33 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: auth-route
+          uri: lb://main-service
+          predicates:
+            - Path=/auth/**
+        - id: main-api
+          uri: lb://main-service
+          predicates:
+            - Path=/api/**
+          filters:
+            - AuthenticationFilter # Наш кастомный JWT фильтр
+
+application:
+  jwt:
+    secret: super-secret-key-that-must-be-very-long-and-secure-base64-encoded
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus,health,info,metrics
+  zipkin:
+    tracing:
+      endpoint: "http://zipkin:9411/api/v2/spans"
+  tracing:
+    sampling:
+      probability: 1.0

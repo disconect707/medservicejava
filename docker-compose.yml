@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  # --- INFRASTRUCTURE ---
+  postgres:
+    image: postgres:15
+    container_name: med_postgres
+    environment:
+      POSTGRES_USER: clinic_user
+      POSTGRES_PASSWORD: supersecret
+      POSTGRES_DB: clinicdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clinic_user -d clinicdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    container_name: med_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio_admin
+      MINIO_ROOT_PASSWORD: minio_password
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: med_zipkin
+    ports:
+      - "9411:9411"
+
+  # --- OBSERVABILITY ---
+  prometheus:
+    image: prom/prometheus
+    container_name: med_prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana
+    container_name: med_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
+    container_name: med_elastic
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.10
+    container_name: med_kibana
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.17.10
+    container_name: med_logstash
+    volumes:
+      - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5000:5000/tcp"
+    depends_on:
+      - elasticsearch
+
+  # --- MICROSERVICES ---
+  config-service:
+    build:
+      context: ./config-service
+    container_name: med_config
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./config-repo:/config-repo
+    environment:
+      - SPRING_PROFILES_ACTIVE=native
+      - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=file:///config-repo
+
+  gateway-service:
+    build:
+      context: ./gateway-service
+    container_name: med_gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - CONFIG_URI=http://config-service:8888
+      - LOGSTASH_HOST=logstash
+      - ZIPKIN_HOST=zipkin
+    depends_on:
+      - config-service
+      - zipkin
+
+  main-service:
+    build:
+      context: ./main-service
+    container_name: med_main
+    environment:
+      - CONFIG_URI=http://config-service:8888
+      - DB_HOST=postgres
+      - MINIO_HOST=minio
+      - LOGSTASH_HOST=logstash
+      - ZIPKIN_HOST=zipkin
+    depends_on:
+      - config-service
+      - postgres
+      - minio
+      - zipkin
+
+volumes:
+  pgdata:
+  minio_data:
