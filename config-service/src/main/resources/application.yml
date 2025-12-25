@@ -1,17 +1,56 @@
 server:
-  port: 8888
+  port: 8081
 
 spring:
   application:
-    name: config-service
-  profiles:
-    active: native
+    name: main-service
+  config:
+    import: "optional:configserver:${CONFIG_URI:http://localhost:8888}"
   cloud:
     config:
-      server:
-        native:
-          # Ищем конфиги в разных местах:
-          # 1. Для Docker (file:/config-repo)
-          # 2. Для локального запуска из корня (file:./config-repo)
-          # 3. Для локального запуска из папки модуля (file:../config-repo)
-          search-locations: file:/config-repo, file:./config-repo, file:../config-repo
+      fail-fast: false
+      retry:
+        enabled: true
+        initial-interval: 1000
+        max-attempts: 5
+
+  # === FALLBACK DATASOURCE (ЗАПАСНАЯ КОНФИГУРАЦИЯ) ===
+  # Подключаемся к localhost:5433, так как в docker-compose.yml
+  # порт проброшен как "5433:5432".
+  datasource:
+    url: jdbc:postgresql://localhost:5433/clinicdb
+    username: clinic_user
+    password: supersecret
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+application:
+  minio:
+    url: http://localhost:9000
+    access-key: minio_admin
+    secret-key: minio_password
+    bucket: medical-records
+  jwt:
+    secret: super-secret-key-that-must-be-very-long-and-secure-base64-encoded
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus,health,info,metrics
+  zipkin:
+    tracing:
+      endpoint: "http://localhost:9411/api/v2/spans"
+  tracing:
+    sampling:
+      probability: 1.0

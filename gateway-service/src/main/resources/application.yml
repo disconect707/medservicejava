@@ -1,5 +1,29 @@
+server:
+  port: 8080
+
 spring:
   application:
     name: gateway-service
   config:
+    # Пытаемся подключиться к Config Server (optional = не падать сразу при ошибке)
     import: "optional:configserver:${CONFIG_URI:http://localhost:8888}"
+  cloud:
+    gateway:
+      routes:
+        - id: auth-route
+          uri: http://main-service:8081
+          predicates:
+            - Path=/auth/**
+        - id: main-api
+          uri: http://main-service:8081
+          predicates:
+            - Path=/api/**
+          filters:
+            - AuthenticationFilter # Наш кастомный фильтр
+
+# === ВАЖНО: ЛОКАЛЬНЫЙ СЕКРЕТ (FALLBACK) ===
+# Добавляем секретный ключ сюда, чтобы сервис мог запуститься,
+# если не получил его от Config Server.
+application:
+  jwt:
+    secret: super-secret-key-that-must-be-very-long-and-secure-base64-encoded

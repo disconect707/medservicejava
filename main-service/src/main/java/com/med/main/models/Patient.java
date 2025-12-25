@@ -1,23 +1,27 @@
 package com.med.main.models;
 
 import jakarta.persistence.*;
+import lombok.Data;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "patients")
+@Data
 public class Patient {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // В вашей предыдущей схеме (Go) это были поля firstName/lastName,
-    // но если вы хотите использовать просто 'name', оставьте так.
-    // Если нужно соответствие старой базе, лучше вернуть firstName и lastName.
-    private String name;
+    // !!! ВАЖНО: Это поле нужно для метода findByUserId в репозитории !!!
+    @Column(name = "user_id")
+    private Long userId;
 
-    // Геттеры и Сеттеры
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    @Column(name = "first_name")
+    private String firstName;
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    @Column(name = "last_name")
+    private String lastName;
+
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
 }
