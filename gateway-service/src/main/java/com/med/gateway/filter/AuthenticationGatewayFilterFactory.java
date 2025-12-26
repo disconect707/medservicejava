@@ -14,24 +14,23 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 
 @Component
-public class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFilter.Config> {
+public class AuthenticationGatewayFilterFactory extends AbstractGatewayFilterFactory<AuthenticationGatewayFilterFactory.Config> {
 
     @Value("${application.jwt.secret}")
     private String secret;
 
-    public AuthenticationFilter() {
+    public AuthenticationGatewayFilterFactory() {
         super(Config.class);
     }
 
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
-            // Разрешаем доступ к путям авторизации без токена
+            // Разрешаем доступ к auth без токена
             if (exchange.getRequest().getURI().getPath().contains("/auth")) {
                 return chain.filter(exchange);
             }
 
-            // Проверяем наличие заголовка Authorization
             if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
@@ -43,7 +42,6 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
             }
 
             try {
-                // Валидация токена
                 SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
                 Claims claims = Jwts.parser()
                         .verifyWith(key)
@@ -51,14 +49,12 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                         .parseSignedClaims(authHeader)
                         .getPayload();
 
-                // Добавляем ID пользователя в заголовок запроса для микросервисов
                 exchange.getRequest().mutate()
                         .header("X-User-Id", String.valueOf(claims.get("user_id")))
                         .header("X-Role-Id", String.valueOf(claims.get("role_id")))
                         .build();
 
             } catch (Exception e) {
-                // Если токен невалиден
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
             }

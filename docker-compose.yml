@@ -15,9 +15,9 @@ services:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U clinic_user -d clinicdb"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -26,10 +26,11 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    # Оставляем простой healthcheck для Redis, он быстрый
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 5
 
   minio:
@@ -108,14 +109,7 @@ services:
       - ./config-repo:/config-repo
     environment:
       - SPRING_PROFILES_ACTIVE=native
-      - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=file:///config-repo
-    # ОБНОВЛЕННЫЙ HEALTHCHECK: Даем больше времени на запуск (start_period)
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10          # Больше попыток
-      start_period: 30s    # Ждем 30 секунд перед первой проверкой (важно для Java)
+    # УБРАЛИ HEALTHCHECK: Больше не ждем curl, просто запускаем.
 
   gateway-service:
     build:
@@ -127,10 +121,9 @@ services:
       - CONFIG_URI=http://config-service:8888
       - ZIPKIN_HOST=zipkin
     depends_on:
-      config-service:
-        condition: service_healthy
-      zipkin:
-        condition: service_started
+      # Заменили condition: service_healthy на простое ожидание старта
+      - config-service
+      - zipkin
 
   main-service:
     build:
@@ -143,16 +136,14 @@ services:
       - REDIS_HOST=redis
       - ZIPKIN_HOST=zipkin
     depends_on:
-      config-service:
-        condition: service_healthy
+      # Заменили condition: service_healthy на простое ожидание старта
+      - config-service
       postgres:
-        condition: service_healthy
+        condition: service_healthy # БД все же лучше подождать, это критично
       redis:
         condition: service_healthy
-      minio:
-        condition: service_started
-      zipkin:
-        condition: service_started
+        - minio
+        - zipkin
 
 volumes:
   pgdata:
