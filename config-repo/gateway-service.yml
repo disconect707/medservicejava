@@ -6,15 +6,16 @@ spring:
     gateway:
       routes:
         - id: auth-route
-          uri: lb://main-service
+          # Используем имя сервиса из docker-compose и порт
+          uri: http://main-service:8081
           predicates:
             - Path=/auth/**
         - id: main-api
-          uri: lb://main-service
+          uri: http://main-service:8081
           predicates:
-            - Path=/api/**
+            - Path=/api/**, /patients/**
           filters:
-            - AuthenticationFilter # Наш кастомный JWT фильтр
+            - AuthenticationFilter
 
 application:
   jwt:

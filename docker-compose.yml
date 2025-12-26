@@ -15,8 +15,21 @@ services:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U clinic_user -d clinicdb"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: med_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
       retries: 5
 
   minio:
@@ -80,7 +93,7 @@ services:
     volumes:
       - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
     ports:
-      - "5000:5000/tcp"
+      - "5044:5000/tcp"
     depends_on:
       - elasticsearch
 
@@ -96,6 +109,13 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=native
       - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=file:///config-repo
+    # ОБНОВЛЕННЫЙ HEALTHCHECK: Даем больше времени на запуск (start_period)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10          # Больше попыток
+      start_period: 30s    # Ждем 30 секунд перед первой проверкой (важно для Java)
 
   gateway-service:
     build:
@@ -105,11 +125,12 @@ services:
       - "8080:8080"
     environment:
       - CONFIG_URI=http://config-service:8888
-      - LOGSTASH_HOST=logstash
       - ZIPKIN_HOST=zipkin
     depends_on:
-      - config-service
-      - zipkin
+      config-service:
+        condition: service_healthy
+      zipkin:
+        condition: service_started
 
   main-service:
     build:
@@ -119,14 +140,21 @@ services:
       - CONFIG_URI=http://config-service:8888
       - DB_HOST=postgres
       - MINIO_HOST=minio
-      - LOGSTASH_HOST=logstash
+      - REDIS_HOST=redis
       - ZIPKIN_HOST=zipkin
     depends_on:
-      - config-service
-      - postgres
-      - minio
-      - zipkin
+      config-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      zipkin:
+        condition: service_started
 
 volumes:
   pgdata:
   minio_data:
+  redis_data:

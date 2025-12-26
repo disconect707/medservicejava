@@ -1,31 +1,20 @@
-package com.med.gateway;
+package com.med.gateway.filter;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-
-
 import javax.crypto.SecretKey;
 
-@SpringBootApplication
-public class GatewayApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(GatewayApplication.class, args);
-    }
-}
-
 @Component
-class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFilter.Config> {
+public class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFilter.Config> {
 
     @Value("${application.jwt.secret}")
     private String secret;
@@ -37,6 +26,12 @@ class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFi
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
+            // Разрешаем доступ к путям авторизации без токена
+            if (exchange.getRequest().getURI().getPath().contains("/auth")) {
+                return chain.filter(exchange);
+            }
+
+            // Проверяем наличие заголовка Authorization
             if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
@@ -48,6 +43,7 @@ class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFi
             }
 
             try {
+                // Валидация токена
                 SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
                 Claims claims = Jwts.parser()
                         .verifyWith(key)
@@ -55,13 +51,14 @@ class AuthenticationFilter extends AbstractGatewayFilterFactory<AuthenticationFi
                         .parseSignedClaims(authHeader)
                         .getPayload();
 
-                // Передаем ID пользователя в downstream сервис через хедеры
+                // Добавляем ID пользователя в заголовок запроса для микросервисов
                 exchange.getRequest().mutate()
                         .header("X-User-Id", String.valueOf(claims.get("user_id")))
                         .header("X-Role-Id", String.valueOf(claims.get("role_id")))
                         .build();
 
             } catch (Exception e) {
+                // Если токен невалиден
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
             }

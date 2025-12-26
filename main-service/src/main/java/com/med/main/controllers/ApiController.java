@@ -1,8 +1,8 @@
 package com.med.main.controllers;
 
-import com.med.main.repo.AppointmentRepository;
 import com.med.main.models.*;
 import com.med.main.repo.*;
+import com.med.main.services.DataProcessingService;
 import com.med.main.services.MinioStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -22,11 +22,8 @@ public class ApiController {
     private final MedicalRecordRepository medRepo;
     private final MinioStorageService storageService;
 
-    // Вспомогательный метод для получения ID из заголовков (установленных Gateway)
-    private Long getCurrentUserId(String uidHeader) {
-        if(uidHeader == null) throw new RuntimeException("Unauthorized");
-        return Long.parseLong(uidHeader);
-    }
+    // Внедряем сервис обработки
+    private final DataProcessingService dataProcessingService;
 
     @GetMapping("/doctors")
     public List<Doctor> getDoctors() {
@@ -39,14 +36,19 @@ public class ApiController {
     }
 
     @PostMapping("/appointments")
-    public Appointment createAppointment(@RequestBody Appointment appt, @RequestHeader(value="X-User-Id", required=false) String uid) {
-        // Логика валидации
+    public Appointment createAppointment(@RequestBody Appointment appt) {
         return apptRepo.save(appt);
     }
 
     @GetMapping("/appointments")
     public List<Appointment> getAppointments() {
         return apptRepo.findAll();
+    }
+
+    // Новый эндпоинт для аналитики (с кэшированием)
+    @GetMapping("/analytics/patient/{id}")
+    public DataProcessingService.PatientSummary getPatientAnalytics(@PathVariable Long id) {
+        return dataProcessingService.processPatientStatistics(id);
     }
 
     @PostMapping(value = "/medical_records", consumes = {"multipart/form-data"})

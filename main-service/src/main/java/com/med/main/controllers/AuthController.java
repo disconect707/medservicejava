@@ -1,5 +1,6 @@
 package com.med.main.controllers;
 
+import com.med.main.models.User;
 import com.med.main.services.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthService authService;
+
+    // Эндпоинт для регистрации
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody User user) {
+        return ResponseEntity.ok(authService.register(user));
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> creds) {
