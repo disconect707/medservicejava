@@ -26,28 +26,52 @@ public class AuthService {
         if (userRepo.findByUsername(user.getUsername()).isPresent()) {
             throw new RuntimeException("Username already exists");
         }
-        // В реальном проекте тут нужен хеш пароля, но для демо оставим так
+        // ВАЖНО: Добавлена валидация!
+        // Если прислали JSON с полем "password" вместо "passwordHash", то user.getPasswordHash() будет null.
+        if (user.getPasswordHash() == null || user.getPasswordHash().trim().isEmpty()) {
+            throw new RuntimeException("Error: field 'passwordHash' is required in registration JSON");
+        }
         return userRepo.save(user);
     }
 
     public String login(String username, String password) {
+        System.out.println("Login attempt for: " + username);
+
         User u = userRepo.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (u.getPasswordHash() == null) {
+            System.err.println("Error: User has null password in DB");
+            throw new RuntimeException("Server Error: User data corrupted");
+        }
 
         if (!u.getPasswordHash().equals(password)) {
             throw new RuntimeException("Invalid password");
         }
 
-        // ИСПРАВЛЕНО: Используем getBytes для создания ключа, это надежнее для демо
-        SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        // --- ИСПРАВЛЕНИЕ: Проверка и Fallback для секретного ключа ---
+        String jwtSecret = this.secret;
+        // Если секрет null или пустой или слишком короткий
+        if (jwtSecret == null || jwtSecret.trim().isEmpty() || jwtSecret.length() < 32) {
+            System.err.println("CRITICAL WARNING: 'application.jwt.secret' is null/empty or too short! Using fallback secret.");
+            // Используем жестко заданный ключ, если из конфига не пришел
+            jwtSecret = "fallback-secret-key-that-is-very-long-and-secure-enough-for-hs256";
+        }
 
-        return Jwts.builder()
-                .claim("user_id", u.getId())
-                .claim("role_id", u.getRoleId())
-                .subject(u.getUsername()) // Добавил subject, это хорошая практика
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + 86400000)) // 1 день
-                .signWith(key)
-                .compact();
+        try {
+            SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+
+            return Jwts.builder()
+                    .claim("user_id", u.getId())
+                    .claim("role_id", u.getRoleId())
+                    .subject(u.getUsername())
+                    .issuedAt(new Date())
+                    .expiration(new Date(System.currentTimeMillis() + 86400000)) // 1 день
+                    .signWith(key)
+                    .compact();
+        } catch (Exception e) {
+            e.printStackTrace(); // Важно: пишем ошибку в логи
+            throw new RuntimeException("Token generation failed: " + e.getMessage());
+        }
     }
 }

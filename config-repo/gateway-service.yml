@@ -2,11 +2,13 @@ server:
   port: 8080
 
 spring:
+  application:
+    name: gateway-service
   cloud:
     gateway:
       routes:
         - id: auth-route
-          # Используем имя сервиса из docker-compose и порт
+          # Маршрутизация на main-service
           uri: http://main-service:8081
           predicates:
             - Path=/auth/**
@@ -15,14 +17,11 @@ spring:
           predicates:
             - Path=/api/**, /patients/**
           filters:
-            - AuthenticationFilter
+            - Authentication # <--- ИСПРАВЛЕНО (было AuthenticationFilter)
 
-# ОТКЛЮЧАЕМ EUREKA
 eureka:
   client:
     enabled: false
-    register-with-eureka: false
-    fetch-registry: false
 
 application:
   jwt:

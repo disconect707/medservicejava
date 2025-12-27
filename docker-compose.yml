@@ -44,8 +44,6 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
-    # MinIO стартует быстро, healthcheck не обязателен для простого демо,
-    # но можно добавить проверку порта, если критично.
 
   zipkin:
     image: openzipkin/zipkin
@@ -110,13 +108,12 @@ services:
       - ./config-repo:/config-repo
     environment:
       - SPRING_PROFILES_ACTIVE=native
-    # ВАЖНО: Добавили Healthcheck, чтобы другие сервисы ждали полной загрузки
     healthcheck:
       test: "curl --fail --silent http://localhost:8888/actuator/health | grep UP || exit 1"
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 20
+      start_period: 180s # УВЕЛИЧЕНО до 3 минут для медленного старта
 
   gateway-service:
     build:
@@ -129,7 +126,7 @@ services:
       - ZIPKIN_HOST=zipkin
     depends_on:
       config-service:
-        condition: service_healthy # Ждем, пока config-service станет "healthy"
+        condition: service_healthy
       zipkin:
         condition: service_started
 
@@ -139,13 +136,10 @@ services:
     container_name: med_main
     environment:
       - CONFIG_URI=http://config-service:8888
-      - DB_HOST=postgres
-      - MINIO_HOST=minio
-      - REDIS_HOST=redis
       - ZIPKIN_HOST=zipkin
     depends_on:
       config-service:
-        condition: service_healthy # Ждем, пока config-service станет "healthy"
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
