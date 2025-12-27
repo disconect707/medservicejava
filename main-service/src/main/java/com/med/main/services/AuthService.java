@@ -3,12 +3,12 @@ package com.med.main.services;
 import com.med.main.models.User;
 import com.med.main.repo.UserRepository;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 @Service
@@ -22,13 +22,11 @@ public class AuthService {
         this.userRepo = userRepo;
     }
 
-    // НОВЫЙ МЕТОД: РЕГИСТРАЦИЯ
     public User register(User user) {
         if (userRepo.findByUsername(user.getUsername()).isPresent()) {
             throw new RuntimeException("Username already exists");
         }
-        // В продакшене здесь нужно хешировать пароль (BCrypt)
-        // user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
+        // В реальном проекте тут нужен хеш пароля, но для демо оставим так
         return userRepo.save(user);
     }
 
@@ -40,12 +38,15 @@ public class AuthService {
             throw new RuntimeException("Invalid password");
         }
 
-        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        // ИСПРАВЛЕНО: Используем getBytes для создания ключа, это надежнее для демо
+        SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+
         return Jwts.builder()
                 .claim("user_id", u.getId())
                 .claim("role_id", u.getRoleId())
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 86400000)) // 1 день
+                .subject(u.getUsername()) // Добавил subject, это хорошая практика
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 86400000)) // 1 день
                 .signWith(key)
                 .compact();
     }

@@ -5,6 +5,7 @@ spring:
   application:
     name: main-service
   config:
+    # Используем optional, чтобы не падать сразу, если config-service недоступен
     import: "optional:configserver:${CONFIG_URI:http://localhost:8888}"
   cloud:
     config:
@@ -15,8 +16,6 @@ spring:
         max-attempts: 5
 
   # === FALLBACK DATASOURCE (ЗАПАСНАЯ КОНФИГУРАЦИЯ) ===
-  # Подключаемся к localhost:5433, так как в docker-compose.yml
-  # порт проброшен как "5433:5432".
   datasource:
     url: jdbc:postgresql://localhost:5433/clinicdb
     username: clinic_user
@@ -33,6 +32,14 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+
+# === ВАЖНО: ОТКЛЮЧАЕМ EUREKA В ЛОКАЛЬНОМ КОНФИГЕ ===
+# Это предотвратит падение приложения, если Config Service недоступен
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
 
 application:
   minio:

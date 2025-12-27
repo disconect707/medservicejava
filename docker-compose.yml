@@ -26,7 +26,6 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    # Оставляем простой healthcheck для Redis, он быстрый
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -45,6 +44,8 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+    # MinIO стартует быстро, healthcheck не обязателен для простого демо,
+    # но можно добавить проверку порта, если критично.
 
   zipkin:
     image: openzipkin/zipkin
@@ -109,7 +110,13 @@ services:
       - ./config-repo:/config-repo
     environment:
       - SPRING_PROFILES_ACTIVE=native
-    # УБРАЛИ HEALTHCHECK: Больше не ждем curl, просто запускаем.
+    # ВАЖНО: Добавили Healthcheck, чтобы другие сервисы ждали полной загрузки
+    healthcheck:
+      test: "curl --fail --silent http://localhost:8888/actuator/health | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   gateway-service:
     build:
@@ -121,9 +128,10 @@ services:
       - CONFIG_URI=http://config-service:8888
       - ZIPKIN_HOST=zipkin
     depends_on:
-      # Заменили condition: service_healthy на простое ожидание старта
-      - config-service
-      - zipkin
+      config-service:
+        condition: service_healthy # Ждем, пока config-service станет "healthy"
+      zipkin:
+        condition: service_started
 
   main-service:
     build:
@@ -136,14 +144,16 @@ services:
       - REDIS_HOST=redis
       - ZIPKIN_HOST=zipkin
     depends_on:
-      # Заменили condition: service_healthy на простое ожидание старта
-      - config-service
+      config-service:
+        condition: service_healthy # Ждем, пока config-service станет "healthy"
       postgres:
-        condition: service_healthy # БД все же лучше подождать, это критично
+        condition: service_healthy
       redis:
         condition: service_healthy
-        - minio
-        - zipkin
+      minio:
+        condition: service_started
+      zipkin:
+        condition: service_started
 
 volumes:
   pgdata:

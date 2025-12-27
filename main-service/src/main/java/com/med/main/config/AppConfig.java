@@ -10,7 +10,6 @@ public class AppConfig {
     @Value("${application.minio.url}")
     private String minioUrl;
 
-    // ИСПРАВЛЕНО: Убрана лишняя буква 'ч' в конце
     @Value("${application.minio.access-key}")
     private String accessKey;
 
@@ -19,6 +18,9 @@ public class AppConfig {
 
     @Bean
     public MinioClient minioClient() {
+        // Добавляем простую проверку, чтобы не падало при старте если конфиг пустой (опционально)
+        if (minioUrl == null) minioUrl = "http://localhost:9000";
+
         return MinioClient.builder()
                 .endpoint(minioUrl)
                 .credentials(accessKey, secretKey)

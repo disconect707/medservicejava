@@ -5,9 +5,15 @@ spring:
   application:
     name: gateway-service
   config:
-    # Пытаемся подключиться к Config Server (optional = не падать сразу при ошибке)
     import: "optional:configserver:${CONFIG_URI:http://localhost:8888}"
   cloud:
+    config:
+      fail-fast: false # Не падать сразу при первой неудаче
+      retry:
+        enabled: true
+        initial-interval: 2000 # Ждать 2 секунды перед повтором
+        max-interval: 5000
+        max-attempts: 20   # Пытаться 20 раз (всего около минуты ожидания)
     gateway:
       routes:
         - id: auth-route
@@ -19,11 +25,15 @@ spring:
           predicates:
             - Path=/api/**
           filters:
-            - AuthenticationFilter # Наш кастомный фильтр
+            - AuthenticationFilter
 
-# === ВАЖНО: ЛОКАЛЬНЫЙ СЕКРЕТ (FALLBACK) ===
-# Добавляем секретный ключ сюда, чтобы сервис мог запуститься,
-# если не получил его от Config Server.
+# === ОТКЛЮЧАЕМ EUREKA ЗДЕСЬ ===
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
 application:
   jwt:
     secret: super-secret-key-that-must-be-very-long-and-secure-base64-encoded

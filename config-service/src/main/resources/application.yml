@@ -4,12 +4,12 @@ server:
 spring:
   application:
     name: config-service
+  profiles:
+    active: native
   cloud:
     config:
       server:
-        git:
-          uri: file:///config-repo
-          default-label: main
+        # Мы используем только нативный режим (файлы), Git отключаем
         native:
           search-locations: file:///config-repo
 

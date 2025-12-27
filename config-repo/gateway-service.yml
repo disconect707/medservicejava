@@ -17,6 +17,13 @@ spring:
           filters:
             - AuthenticationFilter
 
+# ОТКЛЮЧАЕМ EUREKA
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
 application:
   jwt:
     secret: super-secret-key-that-must-be-very-long-and-secure-base64-encoded
@@ -28,7 +35,7 @@ management:
         include: prometheus,health,info,metrics
   zipkin:
     tracing:
-      endpoint: "http://zipkin:9411/api/v2/spans"
+      endpoint: "http://${ZIPKIN_HOST:zipkin}:9411/api/v2/spans"
   tracing:
     sampling:
       probability: 1.0

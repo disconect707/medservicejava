@@ -1,49 +1,32 @@
 server:
-  port: 8081
+  port: 8080
 
 spring:
-  datasource:
-    # ВАЖНО: Внутри Docker используем порт 5432 (внутренний порт контейнера postgres)
-    url: jdbc:postgresql://${DB_HOST:postgres}:5432/clinicdb
-    username: clinic_user
-    password: supersecret
-    driver-class-name: org.postgresql.Driver
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+  application:
+    name: gateway-service
+  config:
+    import: "optional:configserver:${CONFIG_URI:http://localhost:8888}"
+  cloud:
+    gateway:
+      routes:
+        - id: auth-route
+          uri: http://main-service:8081
+          predicates:
+            - Path=/auth/**
+        - id: main-api
+          uri: http://main-service:8081
+          predicates:
+            - Path=/api/**
+          filters:
+            - AuthenticationFilter
 
-  # Настройка Redis
-  data:
-    redis:
-      host: ${REDIS_HOST:redis}
-      port: 6379
-
-  servlet:
-    multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+# === ОТКЛЮЧАЕМ EUREKA ЗДЕСЬ ===
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
 
 application:
-  minio:
-    url: http://${MINIO_HOST:minio}:9000
-    access-key: minio_admin
-    secret-key: minio_password
-    bucket: medical-records
   jwt:
     secret: super-secret-key-that-must-be-very-long-and-secure-base64-encoded
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: prometheus,health,info,metrics
-  zipkin:
-    tracing:
-      endpoint: "http://${ZIPKIN_HOST:zipkin}:9411/api/v2/spans"
-  tracing:
-    sampling:
-      probability: 1.0
